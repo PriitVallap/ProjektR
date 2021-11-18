@@ -17,9 +17,31 @@ When you click the **Knit** button a document will be generated that includes bo
 
 ```{r andmed}
 library(dplyr)
-algandmed <- read.csv(file="https://raw.githubusercontent.com/yaylinda/nintendo-games-ratings/master/data.csv", header=T)
+data <- read.csv(file="https://raw.githubusercontent.com/yaylinda/nintendo-games-ratings/master/data.csv", header=T)
 
-skoorid <- algandmed %>% filter(!is.na("meta_score"))
+#Eemaldame mängud, mida välja ei lastudki (date = cancelled) või pole veel välja lastud (TBA):
+releasedGames <- data[!(data$date == "Canceled" | data$date == "TBA"| data$date == "TBA 2010"| data$date == "TBA 2011"),]
+
+#Konventeerime kuupäevad tekstilisteks nädalapäevadeks ning lisame nädalapäevad eraldi tulbana tabelisse.
+releasedGames$weekday <- weekdays(as.Date(releasedGames$date, "%B %d, %Y"))
+
+library(lubridate) #vajalik kuupäeva töötlemiseks
+releasedGames$month <- month.name[month(as.Date(releasedGames$date, "%B %d, %Y"))]
+
+#Eeltöötleme andmed hinnangute vaatlemiseks. Eemaldame nii kriitikute kui ka mängijate hinnangute tühjad väljas
+scores_no_meta <- releasedGames[complete.cases(releasedGames$meta_score),]
+scores <- scores_no_meta[complete.cases(scores_no_meta$user_score),]
+
+#Loome ühtse skaala hinnan
+scores$totalScore <- scores$meta_score + scores$user_score*10
+
+#Konventeerime kuupäevadest tekstilised kuude nimetused ning lisame väärtused eraldi tulbana tabelisse
+#install.packages("lubridate")
+
+#Otsime kõik mängud, mille arendaja (developer) on olnud Nintendo
+NintendoReleases <- scores[scores$developers == "Nintendo"] #SEE EI TOIMI PRAEGU
+
+
 ```
 
 ## Including Plots
@@ -27,8 +49,7 @@ skoorid <- algandmed %>% filter(!is.na("meta_score"))
 You can also embed plots, for example:
 
 ```{r pressure, echo=FALSE}
-plot(pressure)
-summary(cars)
+
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

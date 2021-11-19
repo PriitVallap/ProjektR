@@ -25,6 +25,7 @@ releasedGames <- data[!(data$date == "Canceled" | data$date == "TBA"| data$date 
 #Konventeerime kuupäevad tekstilisteks nädalapäevadeks ning lisame nädalapäevad eraldi tulbana tabelisse.
 releasedGames$weekday <- weekdays(as.Date(releasedGames$date, "%B %d, %Y"))
 
+#Konventeerime kuupäevadest tekstilised kuude nimetused ning lisame väärtused eraldi tulbana tabelisse
 library(lubridate) #vajalik kuupäeva töötlemiseks
 releasedGames$month <- month.name[month(as.Date(releasedGames$date, "%B %d, %Y"))]
 
@@ -32,14 +33,20 @@ releasedGames$month <- month.name[month(as.Date(releasedGames$date, "%B %d, %Y")
 scores_no_meta <- releasedGames[complete.cases(releasedGames$meta_score),]
 scores <- scores_no_meta[complete.cases(scores_no_meta$user_score),]
 
-#Loome ühtse skaala hinnan
+#Loome ühtse skaala hinnanguks, skaalaks 0-100 punkti.
 scores$totalScore <- scores$meta_score + scores$user_score*10
 
-#Konventeerime kuupäevadest tekstilised kuude nimetused ning lisame väärtused eraldi tulbana tabelisse
+#Loome veeru kriitikute ja kasutajate hinnangu erinevuste leidmiseks (skaalal 0-100 punkti)
+scores$aggregateScore <- abs(scores$meta_score - scores$user_score*10)
+
 #install.packages("lubridate")
 
 #Otsime kõik mängud, mille arendaja (developer) on olnud Nintendo
 NintendoReleases <- scores[scores$developers == "Nintendo"] #SEE EI TOIMI PRAEGU
+
+library(ggplot2)
+
+ggplot(scores, aes(x = totalScore, y = platform)) + geom_point()
 
 
 ```

@@ -1,26 +1,24 @@
 ---
-title: "R_Projekt"
+title: "Nintendo platvormi mängude analüüs"
 author: "Liisa-Miina Pilv, Priit Vallap"
-date: "18/11/2021"
-output: html_document
+date: "22. november 2021"
+output:
+  pdf_document: default
+  html_document: default
 ---
+# Sissejuhatus
+kust võtsime andmed, mis on uurimisküsimused
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+# Analüüs
+vastame järkjärgult küsimustele, lisame visualiseeringuid tabelite ja graafikute näol; pdf-i koodi ei jäta vaid ainult analüüsitekst
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r andmed}
+```{r andmed, include=FALSE}
 library(dplyr)
 data <- read.csv(file="https://raw.githubusercontent.com/yaylinda/nintendo-games-ratings/master/data.csv", header=T)
 
-#Eemaldame mängud, mida välja ei lastudki (date = cancelled) või pole veel välja lastud (TBA):
-releasedGames <- data[!(data$date == "Canceled" | data$date == "TBA"| data$date == "TBA 2010"| data$date == "TBA 2011"),]
+#Eemaldame mängud, mida välja ei lastudki (date = Canceled) või on alles arenduses (TBA)
+library(stringr)
+releasedGames <- filter(data, !str_detect(date, 'TBA|Canceled'))
 
 #Konventeerime kuupäevad tekstilisteks nädalapäevadeks ning lisame nädalapäevad eraldi tulbana tabelisse.
 releasedGames$weekday <- weekdays(as.Date(releasedGames$date, "%B %d, %Y"))
@@ -29,34 +27,11 @@ releasedGames$weekday <- weekdays(as.Date(releasedGames$date, "%B %d, %Y"))
 library(lubridate) #vajalik kuupäeva töötlemiseks
 releasedGames$month <- month.name[month(as.Date(releasedGames$date, "%B %d, %Y"))]
 
-#Eeltöötleme andmed hinnangute vaatlemiseks. Eemaldame nii kriitikute kui ka mängijate hinnangute tühjad väljas
-scores_no_meta <- releasedGames[complete.cases(releasedGames$meta_score),]
-scores <- scores_no_meta[complete.cases(scores_no_meta$user_score),]
-
-#Loome ühtse skaala hinnanguks, skaalaks 0-100 punkti.
-scores$totalScore <- scores$meta_score + scores$user_score*10
-
-#Loome veeru kriitikute ja kasutajate hinnangu erinevuste leidmiseks (skaalal 0-100 punkti)
-scores$aggregateScore <- abs(scores$meta_score - scores$user_score*10)
-
-#install.packages("lubridate")
-
-#Otsime kõik mängud, mille arendaja (developer) on olnud Nintendo
-NintendoReleases <- scores[scores$developers == "Nintendo"] #SEE EI TOIMI PRAEGU
-
-library(ggplot2)
-
-ggplot(scores, aes(x = totalScore, y = platform)) + geom_point()
-
+#Töötleme andmed hinnangute võrdlemiseks. Eemaldame read, kus nii kriitikute kui kasutajate hinnangud puuduvad. 
+completeScores <- na.omit(releasedGames, cols = c("meta_score", "user_score")) %>%
+# Loome uue rea, kus lahutame kriitikute koondskoorist kasutajate koondskoori.
+  mutate(score_diff = meta_score - user_score*10)
 
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Kokkuvõte

@@ -1,62 +1,190 @@
 ---
-title: "R_Projekt"
+title: "Nintendo konsoolide mängude analüüs"
 author: "Liisa-Miina Pilv, Priit Vallap"
-date: "18/11/2021"
-output: html_document
+date: "22. november 2021"
+output:
+  pdf_document: default
 ---
+\renewcommand{\tablename}{Tabel}
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+# 1. Sissejuhatus
+Käesolevas töös kasutasime Metacriticu veebilehelt kooritud andmeid Nintendo brändi all avaldatud mängude kohta.^[allikas: https://github.com/yaylinda/nintendo-games-ratings] Metacritic on veebileht, mis koondab erinevate meediažanrite, sh arvutimängude arvustused ja arvutab koondhinde juhul kui arvustusi on neli või rohkem.^[allikas: https://www.metacritic.com/about-metascores] Teost saavad hinnata ka Metacriticusse sisseloginud kasutajad. Samuti on Metacriticus kataloogitud teose väljalaskekuupäev, vanusepiirangud, žanrid jm. 
+
+Kasutatud on 29. detsembri 2020. aasta seisuga. Esialgses andmestikus on 1026 objekti ning 10 tunnust. Meid huvitavaid tunnuseid on 5, järgnevalt loetleme need:
+
+* **title** – mängu pealkiri
+* **date** – mängu väljalaskekuupäev
+* **meta_score** – kriitikute koondhinnang, 100-punkti skaalal
+* **user_score** – Metacriticu kasutajate koondhinnang, 10-punkti skaalal
+* **platform** – konsool, millele mäng arendatud
+
+Analüüsimiseks eemaldame andmestikust kõik objektid, millel puudub väljalaskekuupäev, ehk mängud, mille arendamine lõpetati *(date = Canceled)* või mis olid andmete kokkupanemise ajal veel arenduses *(date = TBA)*. Samuti eemaldame kõik iOS-i platvormi mängud, kuna tegemist pole konsooliga. Andmestikku sisestatud iOS mängud on küll Nintendo brändiga, kuid töötavad riistvaral, mis pole Nintendo arendatud. Pärast filteerimist jääb andmestikku 984 objekti. Kuna Metacritic vormistab kriitikute ja kasutajate koondhinnanguid erinevalt, tekitame andmestikku uue tunnuse `user_score_100`, kus kasutajate koondhinnang on korrutatud kümnega. 
+
+```{r vajalikud paketid, include=FALSE}
+library(plyr)
+library(dplyr)
+library(stringr)
+library(knitr)
+library(ggplot2)
+library(lubridate)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r andmed}
-library(dplyr)
+```{r andmete üldine sortimine, include=FALSE}
 data <- read.csv(file="https://raw.githubusercontent.com/yaylinda/nintendo-games-ratings/master/data.csv", header=T)
 
-#Eemaldame mängud, mida välja ei lastudki (date = cancelled) või pole veel välja lastud (TBA):
-releasedGames <- data[!(data$date == "Canceled" | data$date == "TBA"| data$date == "TBA 2010"| data$date == "TBA 2011"),]
+#Eemaldame mängud, mida välja ei lastudki (date = Canceled) või on alles arenduses (TBA) + iOSi mängud + TG16 kuna sellel ainult üks mäng andmestikus
+releasedGames <- filter(data, 
+                        !str_detect(date, 'TBA|Canceled'), 
+                        !str_detect(platform, 'iOS|TG16')) %>%
+#Asendame kasutajate koondhinde tulba
+                  mutate(user_score_100 = user_score * 10, user_score = NULL)
+```
 
+
+## 1.1 Uurimisküsimused
+Töö käigus üritame vastata järgnevatele küsimustele:
+
+1. Millisel määral kattuvad kriitikute ja kasutajate hinnangud? Milliste mängude puhul lahkneb arvamus enim?
+2. Mis konsooli mängud on kasutajate poolt kõrgeimalt hinnatud?
+3. Mis kuu on kõige populaarsem Nintendo konsoolide mängude väljalaskmiseks? Mis nädalapäev?
+
+# 2. Analüüs
+
+Et võrrelda kriitikute ja kasutajate skoore, sorteerime andmestikust välja objektid, millel on mõlemad koondhinded olemas. Sõelale jääb 637 objekti. Kõigepealt võrdleme keskmisi hindeid platvormide kaupa, tulemused on näha tabelis 1. Enamike platvormide puhul on karmimateks hindajateks kriitikud, kuid nt Switchi mänge hindavad kriitikud keskmiselt kõrgemalt kui kasutajad, koondhinded on vastavalt 78.0 ja 74.8. 
+
+Kõige rohkem nõustuvad kriitikud ja kasutajad Nintendo 64 (tabelis N64) mänge hinnates, keskmised hinded erinevad vaid 0.4 punkti võrra. Suurim hinnete vahe ilmneb GameCube (tabelis GC) ja Wii konsoolide puhul, mõlema konsooli mänge hindavad kriitikud ligikaudu 5 punkti võrra madalamalt kui kasutajad. 
+
+```{r andmete sortimine täielike skooride leidmiseks, include=FALSE}
+#Töötleme andmed hinnangute võrdlemiseks. Eemaldame read, kus nii kriitikute kui kasutajate hinnangud puuduvad. 
+completeScores <- na.omit(releasedGames) %>%
+#Loome uue rea, kus lahutame kriitikute koondskoorist kasutajate koondskoori.
+                  mutate(score_diff = meta_score-user_score_100)
+```
+
+```{r koondtabel, echo=FALSE, results='asis'}
+#Grupeerime andmestiku konsoolide kaupa, leiame keskmised hinded ja nende vahe
+table1 <- completeScores %>% 
+  group_by("Konsool" = platform) %>%
+  dplyr::summarise("Mängude arv" = n(), 
+            "Kriitikud" = mean(meta_score), 
+            "Kasutajad"= mean(user_score_100), 
+            "Vahe" = (mean(score_diff)))
+
+#Tabeli välimus PDF-is
+kable(table1, 
+      digits = 1, 
+      align = c("lcccc"), 
+      format = "markdown", 
+      caption = "Koondhinnete võrdlus konsoolide kaupa")
+```
+
+Tulemused on välja toodud ka alloleva karpdiagrammina. Jooniselt on näha, et Switchi konsooli puhul on viis mängu, mida kriitikud on märgatavalt kõrgemini hinnanud kui kasutajad. Võimalik, et just nende ekstreemsete väärtuste tõttu osutus kriitikute keskmine hinne Switchi mängudele kõrgemaks kasutaja omadest. Järgnevalt uurimegi hindeid mängude tasandil, et saada paremini aimu just suurte hinnete erinevustega mängudest.
+
+``` {r karpdiagrammi esitus, echo=FALSE, fig.height=4, results='asis'}
+#Loome karpdiagrammi võrdlemaks hinnete vahesid konsoolide kaupa, kujundame  välimust
+fig1 <- ggplot(completeScores, aes(x = platform, y = score_diff)) + geom_boxplot()
+fig1 + 
+  labs(x = "Konsool", 
+       y = "Kriitikute ja kasutajate hinnete vahe", 
+       title = "Joonis 1. Mängude keskmine hinnete vahe konsoolide kaupa") + theme(plot.title = element_text(size = 12, hjust = 0.5)) + ylim(c(-40,40))   
+```
+
+Jooniselt 2 näeme, et kriitikute ja kasutajate hinnete erinevuste skaala on üldiselt normaaljaotuslik. Suurte vahede (|vahe| > 20) puhul esineb rohkem mänge, mida kasutajad hindasid kõrgemini kui kriitikud.
+
+```{r histogrammi esitus, echo=FALSE, results='asis'}
+fig2 <- ggplot(completeScores, aes(x = score_diff)) + geom_histogram(binwidth = 1)
+fig2 + 
+  labs(x = "Kriitikute ja kasutajate hinnete vahe",
+       y = "Sagedus", 
+       title = "Joonis 2. Keskmiste hinnete vahe mängude kaupa") + 
+  theme(plot.title = element_text(size = 12, hjust = 0.5))
+```
+Leiame kõik mängud, mille hinnete absoluutne erinevus on 20 või suurem. Kasutajad hindavad 20+ skoorivahega kriitikutest kõrgemini 19 mängu (tabel 2), kriitikud aga vastupidi 9 mängu (tabel 3). 
+
+Tabelis 2 näeme 35-punktise vahega mängu "Metal Torrent" – kriitikute koondhinne mängule on 62, kasutajate keskmine hinne aga 97. Ehkki käesolev töö eraldi kriitikute ja kasutajate edetabeleid ei vaata, on siinkohal huvitav märkida, et "Metal Torrent" on Metacriticu lehel kõige kõrgema kasutajaskooriga Nintendo mäng. 35-punktine vahe on ka mängul "Pokemon Mystery Dungeon: Explorers of Sky", mida kriitikud hindavad 54 punktiga ja kasutajad 89 punktiga. Mõlemad mängud on Nintendo DS konsoolile arendatud, DS konsooli leiab sellest tabelist ka kõige tihemini 6 mänguga, sellele järgneb Wii konsool 5 mänguga.
+
+Tabelis 3 ehk kriitikutele rohkem meeldivates mängudes on näha kõik 5 Switchi mängu, mis ka joonisel 1 selgelt erinesid. Kõige suurema hindevahega – 37 punkti – on Switchi mäng "Pokemon Sword / Shield Dual Pack". Kasutajate koondhinne mängule on 43, kriitikutel aga 80. Lähemal vaatlusel leiab tabelist ka Switchi mängud "Pokemon Sword" ja "Pokemon Shield". Antud juhul on tegemist ühe mängu kahe versiooniga, kummastki leiab sisu, mida teises pole. Selline turundusstrateegia on Nintendo Pokemoni seeriale väga omane. "Pokemon Sword / Shield Dual Pack" puhul kombineeriti mõlemad versioonid esmakordselt ka digitaalselt (enne seda olid eri versioonid saadaval vaid füüsiliste kassettidena). Huvitav tähelepanek on Sword ja Shield versioonide täpselt samad koondhinded (kriitikud 80 punkti, kasutajad 46 punkti), ehkki hinnangud ja arvustused on Metacriticus mõlema versiooni jaoks täiesti eraldi. 
+
+Kokkuvõtlikult näeme, et kriitikute hinnangud on üldiselt kasutajate omadest natukene madalamad, eriti GameCube ja Wii konsoolide puhul. Switchi mängude keskmine hinne oli kriitikutel küll kõrgem, kuid täpsemal analüüsil näeme, et hinnete erisust mõjutavad ühe mängu kolm erinevat versiooni. 
+
+\newpage
+```{r skooride erinevuste võrdlus, echo=FALSE, results='asis'}
+#Filtreerime välja objektid mille score_diff väiksem kui 20, sorteerime score_diff järgi kasvavas järjekorras, korrastame veergude nimed
+table2 <- completeScores %>% 
+  filter(score_diff <= -20) %>% 
+  arrange(desc(abs(score_diff))) %>% 
+  dplyr::mutate(id = row_number()) %>% 
+  summarise(" " = id, 
+            "Pealkiri" = title, 
+            "Konsool" = platform, 
+            "Kriitikud" = meta_score, 
+            "Kasutajad" = user_score_100, 
+            "Hinnete erinevus" = abs(score_diff))
+
+#Tabeli välimus PDF-is
+kable(table2, digits = 1, align = c("lccccc"), format = "markdown", caption = "Kasutajate hinne > kriitikute hinne")
+
+#Tabel konsoolide sageduse analüüsimiseks tabelist 2, PDF-i ei lisa
+table2freq <- plyr::count(table2, "Konsool") %>% dplyr::arrange(desc(freq))
+names(table2freq)[2] <- "Sagedus"
+
+#Filtreerime välja objektid mille score_diff suurem kui 20, sorteerime score_diff järgi kahanevas järjekorras, korrastame veergude nimed
+table3 <- completeScores %>% 
+  filter(score_diff >= 20) %>% 
+  arrange(desc(score_diff)) %>% 
+  dplyr::mutate(id = row_number()) %>% 
+  summarise(" " = id, 
+            "Pealkiri" = title, 
+            "Konsool" = platform, 
+            "Kriitikud" = meta_score, 
+            "Kasutajad" = user_score_100, 
+            "Hinnete erinevus" = abs(score_diff))
+
+#Tabeli välimus PDF-is
+kable(table3, 
+      digits = 1, 
+      align = c("lccccc"), 
+      format = "markdown", 
+      caption = "Kriitikute hinne > kasutajate hinne")
+
+##Tabel konsoolide sageduse analüüsimiseks tabelist 3, PDF-i ei lisa
+table3freq <- plyr::count(table2, "Konsool") %>% dplyr::arrange(desc(freq))
+names(table3freq)[2] <- "Sagedus"
+```
+
+Järgnevalt uurime mängude kasutajaskoore, et leida kõrgeimalt hinnatud mängudega konsool. Kui eelnevalt kasutasime võrdlemisel ainult objekte, millel on mõlemad koondhinded, siis nüüd vaatame ainult kasutajaskoore. Nii saame andmestikku juurde 137 objekti, suurendades eelkõige Wii, 3DS-i ja Switchi konsoolide valimit. Tulemused on toodud joonisel 3. Kõige kõrgemate koondhinnetega konsool on Nintendo 64, samuti on kõrgeid hindeid saanud Game Boy Advance ja GameCube konsoolide mängud. Kõige madalamate hinnetega on Switchi mängud, skoorides keskmiselt 10 punkti vähem N64 konsooli mängudest. Switchiga sarnaselt skoorib ka 3DS konsool.
+
+```{r kus on rohkem objekte, include=FALSE}
+plyr::count(is.na(releasedGames$user_score_100))
+plyr::count(is.na(releasedGames$meta_score))
+
+```
+
+
+```{r kasutajaskooride tabel, echo=FALSE, results='asis'}
+table4 <- releasedGames %>%
+  filter(!is.na(user_score_100)) %>%
+  group_by(platform) %>%
+  dplyr::summarise(n=n(), 
+            avg_score = mean(user_score_100))
+
+#Joonis, suurendatud
+fig3 <- ggplot(table4, aes(x = platform, y=avg_score)) + geom_col()
+fig3 + 
+  coord_cartesian(ylim=c(60, 90)) + 
+  labs(x = "Konsool", 
+       y = "Kasutajate keskmine hinnang", 
+            title = "Joonis 3. Kasutajaskooride keskmised konsoolide kaupa") + theme(plot.title = element_text(size = 12, hjust = 0.5))
+
+```
+
+```{r nädalapäeva ja kuu tunnuste tekitamine, include=FALSE}
 #Konventeerime kuupäevad tekstilisteks nädalapäevadeks ning lisame nädalapäevad eraldi tulbana tabelisse.
 releasedGames$weekday <- weekdays(as.Date(releasedGames$date, "%B %d, %Y"))
 
 #Konventeerime kuupäevadest tekstilised kuude nimetused ning lisame väärtused eraldi tulbana tabelisse
-library(lubridate) #vajalik kuupäeva töötlemiseks
 releasedGames$month <- month.name[month(as.Date(releasedGames$date, "%B %d, %Y"))]
-
-#Eeltöötleme andmed hinnangute vaatlemiseks. Eemaldame nii kriitikute kui ka mängijate hinnangute tühjad väljas
-scores_no_meta <- releasedGames[complete.cases(releasedGames$meta_score),]
-scores <- scores_no_meta[complete.cases(scores_no_meta$user_score),]
-
-#Loome ühtse skaala hinnanguks, skaalaks 0-100 punkti.
-scores$totalScore <- scores$meta_score + scores$user_score*10
-
-#Loome veeru kriitikute ja kasutajate hinnangu erinevuste leidmiseks (skaalal 0-100 punkti)
-scores$aggregateScore <- abs(scores$meta_score - scores$user_score*10)
-
-#install.packages("lubridate")
-
-#Otsime kõik mängud, mille arendaja (developer) on olnud Nintendo
-NintendoReleases <- scores[scores$developers == "Nintendo"] #SEE EI TOIMI PRAEGU
-
-library(ggplot2)
-
-ggplot(scores, aes(x = totalScore, y = platform)) + geom_point()
-
-
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Kokkuvõte

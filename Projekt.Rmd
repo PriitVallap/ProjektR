@@ -179,12 +179,46 @@ fig3 +
 
 ```
 
-```{r nädalapäeva ja kuu tunnuste tekitamine, include=FALSE}
+Viimase uurimisteemana vaatleme, millisel nädalapäeval ning millises kuus lastakse välja kõige rohkem mänge. Selleks, et andmeid oleks võimalik korrektselt vaadelda, on esmalt vaja tabelis olevad kuupäevad kujul "Kuu lühend_päev, aasta" vaja töödelda ümber viisil, mis oleksid lihtsamini võrreldavad. Töötlesime kuupäeva sõnekujule. Selleks kasutasime nädalapäevade töötlemiseks funktsiooni "weekdays()" ning kuude töötlemiseks funktsiooni month.name ja month(). Mõlemale funktsioonile andsime ette tabelist võetud kuupäeva sõnena ja muutsime kuupäeva tüüpi andmeteks.
+
+```{r nädalapäeva tunnuste tekitamine, echo=FALSE, results='asis'}
 #Konventeerime kuupäevad tekstilisteks nädalapäevadeks ning lisame nädalapäevad eraldi tulbana tabelisse.
 releasedGames$weekday <- weekdays(as.Date(releasedGames$date, "%B %d, %Y"))
 
-#Konventeerime kuupäevadest tekstilised kuude nimetused ning lisame väärtused eraldi tulbana tabelisse
-releasedGames$month <- month.name[month(as.Date(releasedGames$date, "%B %d, %Y"))]
+weekdays <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+fig4 <- ggplot(data=subset(releasedGames, !is.na(weekday)), aes(x = weekday)) +
+  scale_x_discrete(limits = weekdays) +
+  geom_bar(stat="count")+
+labs(x = "Nädalapäev", 
+       y = "Mängude arv", 
+            title = "Joonis 4. Mängude väljalaskeaeg nädalapäevade võrdluses") + theme(plot.title = element_text(size = 12, hjust = 0.5))
+fig4
 ```
 
+Traditsiooniliselt on välja kujunenud, et mängud lastakse välja pigem nädala alguses, sest nii on võimalik mängu füüsiline koopia kiiremini mängijate kätte toimetada, ilma et mängija peaks terve nädalavahetuse ootama. Kuna tänasel päeval on suurem osa mängude müügist kolinud üle internetti ja mänge on võimalik CD-plaadi pealt arvutisse paigaldamise asemel otse internetist alla laadida ning mängida, siis hakkab tarneraskus vaikselt selles aspektis tähtsust kaotama.
+
+Nagu jooniselt 4 näha, on konkurentsitult kõige populaarsem nädalapäev mängude väljalaskmiseks esmaspäev, millele järgneb reede. Võime oletada, et esmaspäeva populaarsuse taga on lisaks nädala algusele ka asjaolu, et nädalavahetuseti veedavad inimesed arvutite ja konsoolide taga vähem aega, pigem käiakse väljas või veedetakse peredega aega. Seda kinnitab ka asjaolu, et laupäeviti on välja lastud ainult üksikud mängud. 
+
+
+
+```{r kuu tunnuste tekitamine, echo=FALSE, results='asis'}
+#Konventeerime kuupäevadest tekstilised kuude nimetused ning lisame väärtused eraldi tulbana tabelisse
+releasedGames$month <- month.name[month(as.Date(releasedGames$date, "%B %d, %Y"))]
+
+fig5 <- ggplot(data=subset(releasedGames, !is.na(month)), aes(x = month))+ 
+  scale_x_discrete(limits = month.name) + 
+  geom_bar(stat="count") +
+  labs(x = "Kuu", 
+       y = "Arv", 
+            title = "Joonis 5. Mängude väljalaskeaeg kuude võrdluses") + theme(plot.title = element_text(size = 12, hjust = 0.5))
+
+fig5
+```
+
+Joonisel 5 näeme, et kõige populaarsem kuu mängude väljalaskmiseks on november. Novembri populaarsus ei ole üllatav, eriti kui tegemist on mõne oodatuma ja populaarsema mänguga. Selle taga on enamasti üks põhjus - jõulud. Mängutootjad loodavad oma mängud juba novembris välja lasta, et tabada just neid ostjaid, kes oma jõulukingid juba varem ära ostavad. Vastupidiselt jällegi on juulis tulnud välja kõige vähem mänge. Juuli leiget huvi mängude mängimise (ja väljalaskmise) vastu on lihtne selgitada soojade suveilmade ning puhkamisega. Inimesed eelistavad soojade, päikeseliste ilmadega veeta aega värskes õhus, seega ei saa ka mängutootjad võtta riski oma mänguga turule tulla ebapopulaarsel ajal. 
+
+
 # Kokkuvõte
+
+Töö käigus leidsime vastused kõikidele algselt püstitatud kolmele uurimisküsimustele. Uurimisküsimuste lahendamise tegi hõlbsamaks asjaolu, et andmebaas oli uurimiseks piisava suurusega (1026 kirjet). Kuigi esines ka tühje väärtuseid, siis ka nende eemaldamisel jäi iga küsimuse jaoks piisavalt kirjeid alles, mille põhjal edasiseid vaatlusi teha. Tulemustest kõige huvitavam oli näha, et kui mängudele andsid hinnanguid nii kriitikud kui ka mängijad, siis pigem võib öelda, et nende arvamused kattusid mingil määral. Kattuvuse sagedused joonisel 2 vastavad normaaljaotusele. Mängude väljalaskekuupäevade tulemused olid pigem oodatavad. Mängud lastakse välja nädala alguses ning enne jõule. Samuti saime teada, et mängu hinnangut ei mõjuta otseselt see, mis konsoolil mängu mängitakse. Hinnangud olid kõikide konsoolide lõikes üsna võrdsed.
+
